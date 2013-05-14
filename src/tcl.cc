@@ -1,6 +1,9 @@
 /* A basic Velocity Analytics User-Plugin to export a new Tcl command.
  */
 
+/* special usage of sprintf to prevent overflow, thus ignore warnings */
+#define _CRT_SECURE_NO_WARNINGS
+
 #include "tcl.hh"
 
 #include <algorithm>
@@ -267,7 +270,6 @@ spoon::tcl_plugin_t::execute (
 				__time32_t tt;
 				VHTimeProcessor::VHTimeToTT (&VhBaseTime, &tt);
 				Tcl_Obj* tcl_element[] = {
-/* TODO: fix overflow in conversion */
 					Tcl_NewLongObj (tt),
 					Tcl_NewDoubleObj (LastTradePrice),
 					Tcl_NewLongObj (static_cast<long>(CumulativeVolume)),
@@ -277,9 +279,12 @@ spoon::tcl_plugin_t::execute (
 				Tcl_ListObjAppendElement (interp, tcl_result, Tcl_NewListObj (_countof (tcl_element), tcl_element));
 			}
 		} else {
+			static const int max_size = std::numeric_limits<unsigned long>::digits10 + 1;
 			while (fr.Next()) {
+				char bignum[max_size] = {0};
+				sprintf (bignum, "%lu", static_cast<unsigned long>(VhBaseTime));
 				Tcl_Obj* tcl_element[] = {
-					Tcl_NewLongObj (static_cast<long>(VhBaseTime)),
+					Tcl_NewStringObj (bignum, -1),
 					Tcl_NewDoubleObj (LastTradePrice),
 					Tcl_NewLongObj (static_cast<long>(CumulativeVolume)),
 					Tcl_NewDoubleObj (NetChange),
