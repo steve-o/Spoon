@@ -1,0 +1,1 @@
+Basic VA 7.0 User Plugin implementing a vh_flexrecords query returning time_t instead of VHTime.

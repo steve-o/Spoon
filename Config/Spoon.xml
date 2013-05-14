@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- Spoon.xml
+     Velocity Analytics Engine user-plugin configuration file
+  -->
+<PluginFrameworkModule id="Spoon Module">
+
+<!-- Absolute path of plugin library -->
+	<Lib id="Spoon Lib" path="C:/Vhayu/Engine/Bin64/Spoon.dll"/>
+
+	<UserPlugin id="Spoon Plugin" type="Spoon Type"/>
+
+</PluginFrameworkModule>
