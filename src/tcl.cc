@@ -9,7 +9,11 @@
 #include <algorithm>
 #include <cstdint>
 
+/* C++11 Chrono */
 #include <boost/chrono.hpp>
+
+/* Boost Posix Time */
+#include <boost/date_time/gregorian/gregorian_types.hpp>
 
 /* Velocity Analytics Plugin Framework */
 #include <vpf/vpf.h>
@@ -22,7 +26,7 @@
 
 static const char* kFunctionName	= "get_spoon";
 
-#if 1	/* test environment */
+#if 0	/* test environment */
 static const char kVhBaseTime[]		= "VhBaseTime";
 static const char kLastTradePrice[]	= "LastPrice";
 static const char kCumulativeVolume[]	= "CummulativeVolume";
@@ -47,8 +51,39 @@ static const char kFieldList[]		= "fields";
 static const char kRecordLimit[]	= "limit";
 static const char kQueryProperty[]	= "query-property";
 static const char kUseTimeT[]		= "use-time_t";
+static const char kTimezone[]		= "tz";
+static const char kUseHoliday[]		= "use-holiday";
 
 } // namespace switches
+
+/* http://en.wikipedia.org/wiki/Unix_epoch */
+static const boost::gregorian::date kUnixEpoch (1970, 1, 1);
+
+/* Convert Posix time to Unix Epoch time.
+ */
+template< typename TimeT >
+inline
+TimeT
+to_unix_epoch (
+	const boost::posix_time::ptime t
+	)
+{
+	return (t - boost::posix_time::ptime (kUnixEpoch)).total_seconds();
+}
+
+/* Is today<date> a business day, per TBSDK.  Assumes local calendar as per TBSDK.
+ */
+static
+bool
+is_business_day (
+	const boost::gregorian::date d
+	)
+{
+	BusinessDayInfo bd;
+	CHECK (!d.is_not_a_date());
+	const auto time32 = to_unix_epoch<__time32_t> (boost::posix_time::ptime (d));
+	return (0 != TBPrimitives::BusinessDay (time32, &bd));
+}
 
 void
 spoon::tcl_plugin_t::init (
@@ -72,11 +107,44 @@ spoon::tcl_plugin_t::init (
 
 	CommandLine::Init (0, nullptr);
 
+	if (!config_.ParseDomElement (vpf_config.getXmlConfigData())) {
+		is_shutdown_ = true;
+		throw vpf::UserPluginException ("Invalid configuration, aborting.");
+	}
+	if (!Init()) {
+		is_shutdown_ = true;
+		throw vpf::UserPluginException ("Initialization failed, aborting.");
+	} else {
+		LOG(INFO) << "Init complete, awaiting queries.";
+	}
+}
+
+bool
+spoon::tcl_plugin_t::Init()
+{
+	LOG(INFO) << config_;
+
+/* Boost time zone database. */
+	try {
+		tzdb_.load_from_file (config_.tzdb);
+/* default time zone */
+		default_timezone_ = tzdb_.time_zone_from_region (config_.tz);
+		if (nullptr == default_timezone_) {
+			LOG(ERROR) << "TZ not listed within configured time zone specifications.";
+			return false;
+		}
+	} catch (const boost::local_time::data_not_accessible& e) {
+		LOG(ERROR) << "Time zone specifications cannot be loaded: " << e.what();
+		return false;
+	} catch (const boost::local_time::bad_field_count& e) {
+		LOG(ERROR) << "Time zone specifications malformed: " << e.what();
+		return false;
+	}
+
 /* Register Tcl API. */
 	registerCommand (getId(), kFunctionName);
 	LOG(INFO) << "Registered Tcl API \"" << kFunctionName << "\"";
-
-	LOG(INFO) << "Init complete, awaiting queries.";
+	return true;
 }
 
 void
@@ -139,6 +207,11 @@ spoon::tcl_plugin_t::execute (
 
 	Tcl_Obj* tcl_result = nullptr;
 	char error_text[1024];
+
+	if (is_shutdown_) {
+		Tcl_SetResult (interp, "Plugin has shutdown.", TCL_STATIC);
+		return TCL_ERROR;
+	}
 
 	try {
 		boost::chrono::high_resolution_clock::time_point t0, t1;
@@ -211,6 +284,17 @@ spoon::tcl_plugin_t::execute (
 /* FlexRecord query properties */
 		std::string query_property (tcl_args.GetSwitchValueASCII (switches::kQueryProperty));
 
+/* Time for holidays */
+		boost::local_time::time_zone_ptr zone (default_timezone_);
+		const bool use_holiday = tcl_args.HasSwitch (switches::kUseHoliday);
+		if (use_holiday) {
+			const std::string region (tcl_args.GetSwitchValueASCII (switches::kTimezone));
+			if (!region.empty()) {
+				const boost::local_time::time_zone_ptr tzptr = tzdb_.time_zone_from_region (region);
+				if (nullptr != tzptr) zone = tzptr;
+			}
+		}
+
 		if (VLOG_IS_ON(2)) {
 			VLOG(2) << "symbol name: " << symbol_name;
 			VLOG(2) << "record name: " << record_name;
@@ -219,6 +303,8 @@ spoon::tcl_plugin_t::execute (
 			VLOG(2) << "direction: " << direction;
 			VLOG(2) << "limit: " << limit;
 			VLOG(2) << "query property: " << query_property;
+			VLOG(2) << "holidays: " << std::boolalpha << use_holiday;
+			VLOG(2) << "timezone: " << zone->std_zone_name();
 		}
 
 		Tcl_Obj* tcl_result = Tcl_NewListObj (0, nullptr);
@@ -281,10 +367,28 @@ spoon::tcl_plugin_t::execute (
 		const bool use_time_t = tcl_args.HasSwitch (switches::kUseTimeT);
 
 /* Iterate through all ticks */
-		if (use_time_t) {
-			while (fr.Next()) {
-				__time32_t tt;
-				VHTimeProcessor::VHTimeToTT (&VhBaseTime, &tt);
+		boost::gregorian::date holiday;
+		while (fr.Next()) {
+/* Convert timestamp */
+			__time32_t tt;
+			VHTimeProcessor::VHTimeToTT (&VhBaseTime, &tt);
+/* Skip holidays */
+			if (use_holiday) {
+				using namespace boost;
+				using namespace local_time;
+				using namespace posix_time;
+
+				const local_date_time ldt (from_time_t (tt), zone);
+				const auto d = ldt.local_time().date();
+				if (d == holiday)
+					continue;
+				if (!is_business_day (d)) {
+					holiday = d;
+					continue;
+				}
+			}
+/* Pass to Tcl */
+			if (use_time_t) {
 				Tcl_Obj* tcl_element[] = {
 					Tcl_NewLongObj (tt),
 					Tcl_NewDoubleObj (LastTradePrice),
@@ -293,10 +397,9 @@ spoon::tcl_plugin_t::execute (
 					Tcl_NewDoubleObj (PercentChange)
 				};
 				Tcl_ListObjAppendElement (interp, tcl_result, Tcl_NewListObj (_countof (tcl_element), tcl_element));
-			}
-		} else {
-			static const int max_size = std::numeric_limits<unsigned long>::digits10 + 1;
-			while (fr.Next()) {
+			} else {
+/* Promote timestamp to string to workaround old Tcl lack of 64-bit support */
+				static const int max_size = std::numeric_limits<unsigned long>::digits10 + 1;
 				char bignum[max_size] = {0};
 				sprintf (bignum, "%lu", static_cast<unsigned long>(VhBaseTime));
 				Tcl_Obj* tcl_element[] = {

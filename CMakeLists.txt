@@ -6,9 +6,9 @@ cmake_minimum_required (VERSION 2.8)
 
 project (Spoon)
 
-set(SPOON_VERSION_MAJOR 1)
+set(SPOON_VERSION_MAJOR 2)
 set(SPOON_VERSION_MINOR 0)
-set(SPOON_VERSION_BUILD 3)
+set(SPOON_VERSION_BUILD 4)
 
 # Boost headers plus built libraries
 set(BOOST_ROOT D:/boost_1_53_0)
@@ -130,6 +130,7 @@ configure_file(
 # source files
 
 set(cxx-sources
+	src/config.cc
 	src/plugin.cc
 	src/tcl.cc
 	src/chromium/chromium_switches.cc
@@ -175,6 +176,7 @@ target_link_libraries(Spoon
 
 set(config
 	${CMAKE_CURRENT_SOURCE_DIR}/config/Spoon.xml
+	${CMAKE_CURRENT_SOURCE_DIR}/config/date_time_zonespec.csv
 )
 
 install (TARGETS Spoon DESTINATION bin)

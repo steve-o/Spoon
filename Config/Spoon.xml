@@ -5,8 +5,13 @@
 <PluginFrameworkModule id="Spoon Module">
 
 <!-- Absolute path of plugin library -->
-	<Lib id="Spoon Lib" path="C:/Vhayu/Engine/Bin64/Spoon.dll"/>
+	<Lib id="Spoon Lib" path="D:/Vhayu/Plugins/Bin64/Spoon.dll"/>
 
-	<UserPlugin id="Spoon Plugin" type="Spoon Type"/>
+	<UserPlugin id="Spoon Plugin" type="Spoon Type">
+		<config>
+			<Spoon	TZDB="D:/Vhayu/Plugins/Config/date_time_zonespec.csv"
+				TZ="America/New_York"/>
+		</config>
+	</UserPlugin>
 
 </PluginFrameworkModule>
