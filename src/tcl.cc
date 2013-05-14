@@ -18,6 +18,8 @@
 #include "chromium/command_line.hh"
 #include "chromium/logging.hh"
 
+#include "version.hh"
+
 static const char* kFunctionName	= "get_spoon";
 
 #if 1	/* test environment */
@@ -56,11 +58,25 @@ spoon::tcl_plugin_t::init (
 /* Thunk to VA user-plugin base class. */
 	AbstractUserPlugin::init (vpf_config);
 
+	LOG(INFO) << "{ "
+		  "\"pluginType\": \"" << vpf_config.getPluginType() << "\""
+		", \"pluginId\": \"" << vpf_config.getPluginId() << "\""
+		", \"version\": \"" << version_major << '.' << version_minor << '.' << version_build << "\""
+		", \"build\": { "
+			  "\"date\": \"" << build_date << "\""
+			", \"time\": \"" << build_time << "\""
+			", \"system\": \"" << build_system << "\""
+			", \"machine\": \"" << build_machine << "\""
+			" }"
+		" }";
+
 	CommandLine::Init (0, nullptr);
 
 /* Register Tcl API. */
 	registerCommand (getId(), kFunctionName);
 	LOG(INFO) << "Registered Tcl API \"" << kFunctionName << "\"";
+
+	LOG(INFO) << "Init complete, awaiting queries.";
 }
 
 void

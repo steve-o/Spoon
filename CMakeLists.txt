@@ -6,6 +6,10 @@ cmake_minimum_required (VERSION 2.8)
 
 project (Spoon)
 
+set(SPOON_VERSION_MAJOR 1)
+set(SPOON_VERSION_MINOR 0)
+set(SPOON_VERSION_BUILD 3)
+
 # Boost headers plus built libraries
 set(BOOST_ROOT D:/boost_1_53_0)
 set(BOOST_LIBRARYDIR ${BOOST_ROOT}/stage/lib)
@@ -38,6 +42,9 @@ set(VHAYU_LIBRARIES
 	SEDll.lib
 	${VHAYU_XERCES_LIBRARY}
 )
+
+# Python for source generators
+find_package(PythonInterp REQUIRED)
 
 #-----------------------------------------------------------------------------
 # force off-tree build
@@ -95,6 +102,31 @@ set(CMAKE_MODULE_LINKER_FLAGS_RELEASE "${CMAKE_MODULE_LINKER_FLAGS_RELEASE} /LTC
 set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /GS-")
 
 #-----------------------------------------------------------------------------
+# Generated source files
+
+configure_file(
+	${CMAKE_SOURCE_DIR}/version_generator.py.in
+	${CMAKE_BINARY_DIR}/version_generator.py
+	@ONLY
+)
+add_custom_command(
+	OUTPUT ${CMAKE_BINARY_DIR}/version.cc
+	COMMAND ${PYTHON_EXECUTABLE} ${CMAKE_BINARY_DIR}/version_generator.py > ${CMAKE_BINARY_DIR}/version.cc
+	WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+	DEPENDS ${CMAKE_BINARY_DIR}/version_generator.py
+)
+configure_file(
+	${CMAKE_SOURCE_DIR}/src/version.hh
+	${CMAKE_BINARY_DIR}/version.hh
+	COPYONLY
+)
+configure_file(
+	${CMAKE_SOURCE_DIR}/version.rc.in
+	${CMAKE_BINARY_DIR}/version.rc
+	@ONLY
+)
+
+#-----------------------------------------------------------------------------
 # source files
 
 set(cxx-sources
@@ -112,6 +144,11 @@ set(cxx-sources
 	src/chromium/memory/singleton.cc
 	src/chromium/synchronization/lock.cc
 	src/chromium/synchronization/lock_impl_win.cc
+	${CMAKE_BINARY_DIR}/version.cc
+)
+
+set(rc-sources
+	${CMAKE_BINARY_DIR}/version.rc
 )
 
 include_directories(
@@ -128,12 +165,38 @@ link_directories(
 #-----------------------------------------------------------------------------
 # output
 
-add_library(Spoon SHARED ${cxx-sources})
+add_library(Spoon SHARED ${cxx-sources} ${rc-sources})
 
 target_link_libraries(Spoon
 	${Boost_LIBRARIES}
 	${VHAYU_LIBRARIES}
 	dbghelp.lib
 )
+
+set(config
+	${CMAKE_CURRENT_SOURCE_DIR}/config/Spoon.xml
+)
+
+install (TARGETS Spoon DESTINATION bin)
+install (FILES ${config} DESTINATION config)
+
+set (CPACK_SOURCE_IGNORE_FILES "*.lib")
+
+include (InstallRequiredSystemLibraries)
+set (CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}")
+set (CPACK_PACKAGE_DESCRIPTION_SUMMARY "Velocity Analytics Spoon plugin")
+set (CPACK_PACKAGE_VENDOR "Thomson Reuters")
+set (CPACK_NSIS_CONTACT "Steven McCoy <Steven.McCoy@thomsonreuters.com>")
+# There is a bug in NSI that does not handle full unix paths properly. Make
+# sure there is at least one set of four (4) backlasshes.
+set (CPACK_NSIS_MUI_ICON "${CMAKE_CURRENT_SOURCE_DIR}\\\\installer.ico")
+set (CPACK_NSIS_MUI_UNIICON "${CMAKE_CURRENT_SOURCE_DIR}\\\\installer.ico")
+set (CPACK_PACKAGE_ICON "${CMAKE_CURRENT_SOURCE_DIR}\\\\branding.bmp")
+set (CPACK_NSIS_COMPRESSOR "/SOLID lzma")
+set (CPACK_PACKAGE_VERSION_MAJOR "${SPOON_VERSION_MAJOR}")
+set (CPACK_PACKAGE_VERSION_MINOR "${SPOON_VERSION_MINOR}")
+set (CPACK_PACKAGE_VERSION_PATCH "${SPOON_VERSION_BUILD}")
+include (CPack)
+
 
 # end of file
