@@ -25,14 +25,14 @@ namespace spoon
 //  File path for time zone database that Boost::DateTimes likes.
 		std::string tzdb;
 
-//  Default time zone.
-		std::string tz;
+		std::string data_timezone, default_timezone;
 	};
 
 	inline
 	std::ostream& operator<< (std::ostream& o, const config_t& config) {
 		o << "config_t: { "
-			  "\"tz\": \"" << config.tz << "\""
+			  "\"default_timezone\": \"" << config.default_timezone << "\""
+			", \"data_timezone\": \"" << config.data_timezone << "\""
 			", \"tzdb\": \"" << config.tzdb << "\""
 			" ] }";
 		return o;

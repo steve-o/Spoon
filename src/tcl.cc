@@ -127,10 +127,16 @@ spoon::tcl_plugin_t::Init()
 /* Boost time zone database. */
 	try {
 		tzdb_.load_from_file (config_.tzdb);
+/* data time zone */
+		data_timezone_ = tzdb_.time_zone_from_region (config_.data_timezone);
+		if (nullptr == data_timezone_) {
+			LOG(ERROR) << "TZ \"" << config_.data_timezone << "\" not listed within configured time zone specifications.";
+			return false;
+		}
 /* default time zone */
-		default_timezone_ = tzdb_.time_zone_from_region (config_.tz);
+		default_timezone_ = tzdb_.time_zone_from_region (config_.default_timezone);
 		if (nullptr == default_timezone_) {
-			LOG(ERROR) << "TZ not listed within configured time zone specifications.";
+			LOG(ERROR) << "TZ \"" << config_.default_timezone << "\" not listed within configured time zone specifications.";
 			return false;
 		}
 	} catch (const boost::local_time::data_not_accessible& e) {
@@ -139,6 +145,79 @@ spoon::tcl_plugin_t::Init()
 	} catch (const boost::local_time::bad_field_count& e) {
 		LOG(ERROR) << "Time zone specifications malformed: " << e.what();
 		return false;
+	}
+
+/* Time zone conversion tests */
+	{
+		using namespace boost;
+		using namespace local_time;
+		using namespace posix_time;
+
+		struct {
+			__time32_t	tt;
+			char*		name;
+			bool		is_cached_holiday;
+			bool		is_calculated_holiday;
+		} tests[] = {
+			{ 1368223200, "Test #1.1: Friday 6pm EST",	false, false },
+			{ 1368225000, "Test #1.2: Friday 6:30pm EST",	false, false },
+			{ 1368309600, "Test #2.1: Saturday 6pm EST",	false, true  },
+			{ 1368311400, "Test #2.2: Saturday 6:30pm EST", true,  true  },
+			{ 1368396000, "Test #3.1: Sunday 6pm EST",	false, true  },
+			{ 1368397800, "Test #3.2: Sunday 6:30pm EST",   true,  true  },
+			{ 1368482400, "Test #4.1: Monday 6pm EST",      false, false },
+			{ 1368484200, "Test #4.2: Monday 6:30pm EST",   false, false }
+		};
+		for (size_t i = 0; i < _countof (tests); ++i)
+		{
+			boost::gregorian::date last_holiday (not_a_date_time);
+
+			LOG(INFO) << tests[i].name;
+			__time32_t tt = tests[i].tt;
+			{
+				const ptime data_time (from_time_t (tt));
+				const local_date_time data_ldt (data_time.date(), data_time.time_of_day(), data_timezone_, local_date_time::NOT_DATE_TIME_ON_ERROR);
+
+				const local_date_time ldt (data_ldt.utc_time(), default_timezone_);
+				const auto d = ldt.local_time().date();
+
+				const bool is_cached_holiday = (d == last_holiday);
+				const bool is_calculated_holiday = !(is_business_day (d));
+
+				if (is_cached_holiday == tests[i].is_cached_holiday)
+					LOG(INFO) << "SUCCESS: tt is " << (is_cached_holiday ? "" : "not ") << "a cached holiday";
+				else
+					LOG(INFO) << "FAILURE: cached holiday mismatch, cache=" << last_holiday << " d=" << d << ", is_cached_holiday=" << std::boolalpha << is_cached_holiday;
+				if (is_calculated_holiday == tests[i].is_calculated_holiday)
+					LOG(INFO) << "SUCCESS: tt is " << (is_calculated_holiday ? "" : "not ") << "a calculated holiday";
+				else
+					LOG(INFO) << "FAILURE: calculated holiday mismatch";
+
+				if (is_calculated_holiday) last_holiday = d;
+			}
+
+			LOG(INFO) << tests[++i].name;
+			tt = tests[i].tt;
+			{
+				const ptime data_time (from_time_t (tt));
+				const local_date_time data_ldt (data_time.date(), data_time.time_of_day(), data_timezone_, local_date_time::NOT_DATE_TIME_ON_ERROR);
+
+				const local_date_time ldt (data_ldt.utc_time(), default_timezone_);
+				const auto d = ldt.local_time().date();
+
+				const bool is_cached_holiday = (d == last_holiday);
+				const bool is_calculated_holiday = !(is_business_day (d));
+
+				if (is_cached_holiday == tests[i].is_cached_holiday)
+					LOG(INFO) << "SUCCESS: tt is " << (is_cached_holiday ? "" : "not ") << "a cached holiday";
+				else
+					LOG(INFO) << "FAILURE: cached holiday mismatch, cache=" << last_holiday << " d=" << d << ", is_cached_holiday=" << std::boolalpha << is_cached_holiday;
+				if (is_calculated_holiday == tests[i].is_calculated_holiday)
+					LOG(INFO) << "SUCCESS: tt is " << (is_calculated_holiday ? "" : "not ") << "a calculated holiday";
+				else
+					LOG(INFO) << "FAILURE: calculated holiday mismatch";
+			}
+		}
 	}
 
 /* Register Tcl API. */
@@ -367,9 +446,9 @@ spoon::tcl_plugin_t::execute (
 		const bool use_time_t = tcl_args.HasSwitch (switches::kUseTimeT);
 
 /* Iterate through all ticks */
-		boost::gregorian::date holiday;
+		boost::gregorian::date last_holiday (boost::gregorian::not_a_date_time);
 		while (fr.Next()) {
-/* Convert timestamp */
+/* Convert timestamp, time_t will be in local time zone */
 			__time32_t tt;
 			VHTimeProcessor::VHTimeToTT (&VhBaseTime, &tt);
 /* Skip holidays */
@@ -378,12 +457,15 @@ spoon::tcl_plugin_t::execute (
 				using namespace local_time;
 				using namespace posix_time;
 
-				const local_date_time ldt (from_time_t (tt), zone);
+				const ptime data_time (from_time_t (tt));
+				const local_date_time data_ldt (data_time.date(), data_time.time_of_day(), data_timezone_, local_date_time::NOT_DATE_TIME_ON_ERROR);
+
+				const local_date_time ldt (data_ldt.utc_time(), zone);
 				const auto d = ldt.local_time().date();
-				if (d == holiday)
+				if (d == last_holiday)
 					continue;
 				if (!is_business_day (d)) {
-					holiday = d;
+					last_holiday = d;
 					continue;
 				}
 			}

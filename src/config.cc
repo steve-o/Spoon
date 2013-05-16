@@ -24,8 +24,12 @@ using namespace xercesc;
 bool
 spoon::config_t::Validate()
 {
-	if (tz.empty()) {
-		LOG(ERROR) << "Undefined time zone.";
+	if (data_timezone.empty()) {
+		LOG(ERROR) << "Undefined data time zone.";
+		return false;
+	}
+	if (default_timezone.empty()) {
+		LOG(ERROR) << "Undefined default time zone.";
 		return false;
 	}
 	if (tzdb.empty()) {
@@ -97,10 +101,16 @@ spoon::config_t::ParseSpoonNode (
 	vpf::XMLStringPool xml;
 	std::string attr;
 
-/* tz="text" */
-	attr = xml.transcode (elem->getAttribute (L"TZ"));
+/* os_timezone="text" */
+	attr = xml.transcode (elem->getAttribute (L"data_timezone"));
 	if (!attr.empty())
-		tz = attr;
+		data_timezone = attr;
+/* default_timezone="text" */
+	attr = xml.transcode (elem->getAttribute (L"default_timezone"));
+	if (!attr.empty())
+		default_timezone = attr;
+	if (default_timezone.empty())
+		default_timezone = data_timezone;
 /* tzdb="file" */
 	attr = xml.transcode (elem->getAttribute (L"TZDB"));
 	if (!attr.empty())

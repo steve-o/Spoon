@@ -7,8 +7,8 @@ cmake_minimum_required (VERSION 2.8)
 project (Spoon)
 
 set(SPOON_VERSION_MAJOR 2)
-set(SPOON_VERSION_MINOR 0)
-set(SPOON_VERSION_BUILD 4)
+set(SPOON_VERSION_MINOR 1)
+set(SPOON_VERSION_BUILD 6)
 
 # Boost headers plus built libraries
 set(BOOST_ROOT D:/boost_1_53_0)
