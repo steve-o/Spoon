@@ -10,8 +10,8 @@
 	<UserPlugin id="Spoon Plugin" type="Spoon Type">
 		<config>
 			<Spoon	TZDB="D:/Vhayu/Plugins/Config/date_time_zonespec.csv"
-				data_timezone="America/New_York"
-				default_timezone="America/New_York"/>
+				calendarTimeZone="America/New_York"
+				feedTimeZone="America/New_York"/>
 		</config>
 	</UserPlugin>
 

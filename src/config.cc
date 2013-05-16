@@ -24,16 +24,16 @@ using namespace xercesc;
 bool
 spoon::config_t::Validate()
 {
-	if (data_timezone.empty()) {
-		LOG(ERROR) << "Undefined data time zone.";
-		return false;
-	}
-	if (default_timezone.empty()) {
-		LOG(ERROR) << "Undefined default time zone.";
-		return false;
-	}
 	if (tzdb.empty()) {
 		LOG(ERROR) << "Undefined time zone database.";
+		return false;
+	}
+	if (calendar_time_zone.empty()) {
+		LOG(ERROR) << "Undefined calendar time zone.";
+		return false;
+	}
+	if (feed_time_zone.empty()) {
+		LOG(ERROR) << "Undefined feed time zone.";
 		return false;
 	}
 	return true;
@@ -101,16 +101,14 @@ spoon::config_t::ParseSpoonNode (
 	vpf::XMLStringPool xml;
 	std::string attr;
 
-/* os_timezone="text" */
-	attr = xml.transcode (elem->getAttribute (L"data_timezone"));
+/* calendarTimeZone="text" */
+	attr = xml.transcode (elem->getAttribute (L"calendarTimeZone"));
 	if (!attr.empty())
-		data_timezone = attr;
-/* default_timezone="text" */
-	attr = xml.transcode (elem->getAttribute (L"default_timezone"));
+		calendar_time_zone = attr;
+/* feedTimeZone="text" */
+	attr = xml.transcode (elem->getAttribute (L"feedTimeZone"));
 	if (!attr.empty())
-		default_timezone = attr;
-	if (default_timezone.empty())
-		default_timezone = data_timezone;
+		feed_time_zone = attr;
 /* tzdb="file" */
 	attr = xml.transcode (elem->getAttribute (L"TZDB"));
 	if (!attr.empty())

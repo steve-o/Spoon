@@ -8,13 +8,13 @@ project (Spoon)
 
 set(SPOON_VERSION_MAJOR 2)
 set(SPOON_VERSION_MINOR 1)
-set(SPOON_VERSION_BUILD 6)
+set(SPOON_VERSION_BUILD 8)
 
 # Boost headers plus built libraries
 set(BOOST_ROOT D:/boost_1_53_0)
 set(BOOST_LIBRARYDIR ${BOOST_ROOT}/stage/lib)
 set(Boost_USE_STATIC_LIBS ON)
-find_package (Boost 1.44 REQUIRED)
+find_package (Boost 1.44 COMPONENTS date_time REQUIRED)
 
 # TREP-VA 7.0 SDK
 set(VHAYU_ROOT D:/Vhayu-7.0.5)

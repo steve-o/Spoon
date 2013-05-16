@@ -43,7 +43,8 @@ namespace spoon
 		bool is_shutdown_;
 
 		boost::local_time::tz_database tzdb_;
-		boost::local_time::time_zone_ptr data_timezone_, default_timezone_;
+		boost::local_time::time_zone_ptr calendar_time_zone_;
+		boost::local_time::time_zone_ptr feed_time_zone_;
 	};
 
 } /* namespace spoon */
